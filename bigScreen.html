@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>篮球比分大屏</title>
+    <script src="auth.js"></script>
+    <script src="unloadGuard.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Microsoft Yahei', 'PingFang SC', sans-serif;
+        color: #fff;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+      }
+
+      :root {
+        --cyan: #27e4ff;
+        --orange: #ffb020;
+        --green: #26d97f;
+        --red: #ff465c;
+        --line: rgba(255, 255, 255, 0.14);
+        --muted: rgba(238, 247, 255, 0.68);
+        --title-font: clamp(34px, 3.8vw, 64px);
+        --team-font: clamp(24px, 2.4vw, 42px);
+        --score-font: clamp(88px, 11vw, 190px);
+        --time-font: clamp(52px, 6.4vw, 110px);
+        --player-font: clamp(16px, 1.4vw, 25px);
+        --player-row-height: clamp(34px, 4.7vh, 54px);
+        --side-width: 24fr;
+        --center-width: 52fr;
+        --panel-alpha: 0.78;
+        --stat-alpha: 0.055;
+        --border-color: rgba(255, 255, 255, 0.14);
+        --score-bg: rgba(255, 255, 255, 0.08);
+        --score-text: #ffffff;
+        --title-offset: 0px;
+      }
+
+      body {
+        position: relative;
+        overflow: hidden;
+        height: 100vh;
+        padding: clamp(12px, 1.4vw, 22px);
+        display: flex;
+        flex-direction: column;
+        background:
+          radial-gradient(circle at 12% 16%, rgba(255, 176, 32, 0.2), transparent 25%),
+          radial-gradient(circle at 88% 12%, rgba(39, 228, 255, 0.2), transparent 26%),
+          linear-gradient(135deg, #050a14 0%, #091831 54%, #101b35 100%);
+      }
+
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.052) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.052) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: radial-gradient(circle at center, black, transparent 78%);
+        pointer-events: none;
+      }
+
+      .court-lines {
+        position: fixed;
+        inset: -12%;
+        opacity: 0.14;
+        background:
+          radial-gradient(circle at 50% 50%, transparent 0 9%, rgba(39, 228, 255, 0.82) 9.3% 9.7%, transparent 10%),
+          linear-gradient(90deg, transparent 49.8%, rgba(39, 228, 255, 0.76) 50%, transparent 50.2%),
+          linear-gradient(rgba(39, 228, 255, 0.38), rgba(39, 228, 255, 0.38)) center / 66% 1px no-repeat;
+        transform: perspective(900px) rotateX(62deg) translateY(22%);
+        pointer-events: none;
+      }
+
+      .top-title {
+        position: relative;
+        z-index: 1;
+        flex: 0 0 auto;
+        min-height: clamp(56px, 8vh, 86px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: clamp(10px, 1.2vw, 18px);
+        padding: 0 22px;
+        transform: translateY(var(--title-offset));
+        /* border: 1px solid rgba(39, 228, 255, 0.28);
+        border-radius: 12px;
+        background: rgba(5, 15, 31, 0.58); */
+        backdrop-filter: blur(18px);
+        color: #dff9ff;
+        text-align: center;
+        font-size: var(--title-font);
+        font-weight: 900;
+        line-height: 1.08;
+        text-shadow: 0 0 22px rgba(39, 228, 255, 0.28);
+        cursor: pointer;
+      }
+
+      .container {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: minmax(220px, var(--side-width)) minmax(440px, var(--center-width)) minmax(220px, var(--side-width));
+        gap: clamp(10px, 1.1vw, 18px);
+        width: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+
+      .team-box,
+      .center-box {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        background: rgba(9, 20, 40, var(--panel-alpha));
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+        backdrop-filter: blur(18px);
+      }
+
+      .team-head-home,
+      .team-head-away {
+        min-height: clamp(54px, 7vh, 82px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 14px;
+        text-align: center;
+        font-size: var(--team-font);
+        font-weight: 900;
+      }
+
+      .player-th,
+      .player-item {
+        display: grid;
+        grid-template-columns: 20% 38% 21% 21%;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .player-th {
+        flex: 0 0 auto;
+        padding: 10px 12px;
+        color: var(--muted);
+        background: rgba(39, 228, 255, 0.09);
+        font-size: clamp(15px, 1.25vw, 22px);
+        font-weight: 800;
+      }
+
+      #homePlayerList,
+      #awayPlayerList {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .player-item {
+        min-height: var(--player-row-height);
+        padding: 8px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: var(--player-font);
+        font-weight: 700;
+      }
+
+      .player-item.is-playing {
+        background: rgba(38, 217, 127, 0.13);
+        box-shadow: inset 6px 0 0 var(--green);
+      }
+
+      .score-num {
+        color: var(--orange);
+        font-weight: 900;
+        text-shadow: 0 0 14px rgba(255, 176, 32, 0.28);
+      }
+
+      .center-box {
+        padding: clamp(14px, 1.5vw, 24px);
+      }
+
+      .section-txt {
+        flex: 0 0 auto;
+        min-height: clamp(46px, 6vh, 70px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--orange);
+        font-size: clamp(26px, 2.8vw, 46px);
+        font-weight: 900;
+        text-shadow: 0 0 22px rgba(255, 176, 32, 0.26);
+      }
+
+      .score-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: clamp(10px, 1vw, 16px);
+        margin: clamp(8px, 1vh, 16px) 0;
+      }
+
+      .score-block {
+        position: relative;
+        overflow: hidden;
+        height: clamp(130px, 22vh, 240px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 12px;
+        background: var(--score-bg);
+        color: var(--score-text);
+        font-size: var(--score-font);
+        line-height: 1;
+        font-weight: 900;
+        text-shadow: 0 0 30px rgba(39, 228, 255, 0.22);
+      }
+
+      .score-block::after {
+        content: '';
+        position: absolute;
+        inset: auto -20% -42% -20%;
+        height: 70%;
+        background: radial-gradient(circle, rgba(39, 228, 255, 0.22), transparent 68%);
+        pointer-events: none;
+      }
+
+      .time-row {
+        display: grid;
+        grid-template-columns: 72% 26%;
+        gap: 2%;
+        margin-bottom: clamp(10px, 1.5vh, 20px);
+      }
+
+      .time-row.only-game-time {
+        grid-template-columns: 1fr;
+      }
+
+      .time-row.is-hidden,
+      .time-block.is-hidden,
+      .shot24-block.is-hidden {
+        display: none;
+      }
+
+      .time-block,
+      .shot24-block {
+        min-height: clamp(74px, 11vh, 122px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 70, 92, 0.3);
+        border-radius: 10px;
+        background: rgba(255, 70, 92, 0.08);
+        color: var(--red);
+        font-size: var(--time-font);
+        line-height: 1;
+        font-weight: 900;
+        text-shadow: 0 0 26px rgba(255, 70, 92, 0.34);
+      }
+
+      .shot24-block {
+        color: var(--orange);
+        border-color: rgba(255, 176, 32, 0.3);
+        background: rgba(255, 176, 32, 0.08);
+        text-shadow: 0 0 24px rgba(255, 176, 32, 0.32);
+      }
+
+      .mid-item {
+        display: grid;
+        grid-template-columns: 24% 52% 24%;
+        align-items: center;
+        min-height: clamp(48px, 7vh, 80px);
+        margin: 6px 0;
+        padding: 8px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, var(--stat-alpha));
+        text-align: center;
+        font-size: clamp(24px, 2.6vw, 44px);
+        font-weight: 900;
+      }
+
+      .mid-item span:nth-child(2) {
+        color: var(--muted);
+        font-size: clamp(20px, 2vw, 34px);
+      }
+
+      .arrow {
+        color: var(--green);
+        font-size: clamp(36px, 4vw, 64px);
+        text-shadow: 0 0 22px rgba(38, 217, 127, 0.36);
+      }
+
+      .set-drawer {
+        position: absolute;
+        z-index: 20;
+        top: 0;
+        right: -380px;
+        width: 370px;
+        height: 100vh;
+        padding: 16px;
+        overflow-y: auto;
+        border-left: 1px solid rgba(39, 228, 255, 0.3);
+        background: rgba(5, 15, 31, 0.94);
+        backdrop-filter: blur(18px);
+        transition: right 0.3s ease;
+      }
+
+      .set-drawer.open {
+        right: 0;
+      }
+
+      .drawer-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+        font-size: 20px;
+        font-weight: 900;
+      }
+
+      button {
+        border: none;
+        cursor: pointer;
+        font-weight: 800;
+      }
+
+      .close-btn,
+      .set-btn,
+      .bottom-set-btn {
+        border-radius: 7px;
+        background: rgba(39, 228, 255, 0.16);
+        color: #dff9ff;
+      }
+
+      .close-btn {
+        padding: 6px 10px;
+      }
+
+      .set-line {
+        margin: 12px 0;
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.055);
+      }
+
+      .set-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+        color: rgba(238, 247, 255, 0.86);
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .set-value {
+        color: var(--orange);
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .set-controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .set-btn {
+        min-height: 34px;
+        padding: 7px 9px;
+      }
+
+      .set-btn:hover,
+      .bottom-set-btn:hover,
+      .close-btn:hover {
+        background: rgba(39, 228, 255, 0.26);
+      }
+
+      .color-control {
+        width: 100%;
+        height: 38px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+      }
+
+      .bottom-set-btn {
+        width: 100%;
+        padding: 12px;
+        margin: 8px 0;
+        font-size: 16px;
+      }
+
+      .bottom-set-btn.primary {
+        background: linear-gradient(90deg, #ff8a00, #ffbe2e 48%, #27e4ff);
+        color: #07111f;
+      }
+
+      @media (max-width: 980px) {
+        body {
+          overflow: auto;
+        }
+
+        .container {
+          grid-template-columns: 1fr;
+          min-height: auto;
+        }
+
+        .team-box,
+        .center-box {
+          min-height: 420px;
+        }
+
+      }
+    </style>
+  </head>
+  <body>
+    <div class="court-lines"></div>
+    <div class="top-title" id="titleDom">运启新城 同心共赢</div>
+    <div class="container">
+      <div class="team-box" id="homeWrap">
+        <div class="team-head-home" id="homeName">总部</div>
+        <div class="player-th"><span>号码</span><span>球员</span><span>得分</span><span>犯规</span></div>
+        <div id="homePlayerList"></div>
+      </div>
+
+      <div class="center-box">
+        <div class="section-txt">第<span id="currentSection">1</span>节</div>
+        <div class="score-row">
+          <div class="score-block" id="homeScore">00</div>
+          <div class="score-block" id="awayScore">00</div>
+        </div>
+        <div class="time-row" id="timeRow">
+          <div class="time-block" id="gameTime">12:00</div>
+          <div class="shot24-block" id="shot24">24</div>
+        </div>
+        <div class="mid-item"><span id="homeFoul">0</span><span>犯规</span><span id="awayFoul">0</span></div>
+        <div class="mid-item"><span id="homeTimeout">0</span><span>暂停</span><span id="awayTimeout">0</span></div>
+        <div class="mid-item"><span class="arrow" id="leftBall">&lt;</span><span>球权</span><span class="arrow" id="rightBall">&gt;</span></div>
+      </div>
+
+      <div class="team-box" id="awayWrap">
+        <div class="team-head-away" id="awayName">文体</div>
+        <div class="player-th"><span>号码</span><span>球员</span><span>得分</span><span>犯规</span></div>
+        <div id="awayPlayerList"></div>
+      </div>
+    </div>
+
+    <div class="set-drawer" id="setDrawer">
+      <div class="drawer-top">
+        <span>大屏设置</span>
+        <button class="close-btn" onclick="closeDrawer()">关闭</button>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>标题大小</span><span class="set-value" id="titleScaleValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('titleScale', 0.05)">加大</button><button class="set-btn" onclick="adjustSetting('titleScale', -0.05)">减小</button></div>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>球队名称大小</span><span class="set-value" id="teamScaleValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('teamScale', 0.05)">加大</button><button class="set-btn" onclick="adjustSetting('teamScale', -0.05)">减小</button></div>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>分数字体</span><span class="set-value" id="scoreScaleValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('scoreScale', 0.05)">加大</button><button class="set-btn" onclick="adjustSetting('scoreScale', -0.05)">减小</button></div>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>时间字体</span><span class="set-value" id="timeScaleValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('timeScale', 0.05)">加大</button><button class="set-btn" onclick="adjustSetting('timeScale', -0.05)">减小</button></div>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>球员字体</span><span class="set-value" id="playerScaleValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('playerScale', 0.05)">加大</button><button class="set-btn" onclick="adjustSetting('playerScale', -0.05)">减小</button></div>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>球员行高</span><span class="set-value" id="playerRowScaleValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('playerRowScale', 0.05)">加大</button><button class="set-btn" onclick="adjustSetting('playerRowScale', -0.05)">减小</button></div>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>两侧向中心移动</span><span class="set-value" id="sideInsetValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('sideInset', 1)">缩进</button><button class="set-btn" onclick="adjustSetting('sideInset', -1)">减少缩进</button></div>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>球员列表透明度</span><span class="set-value" id="panelAlphaValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('panelAlpha', -0.05)">更透明</button><button class="set-btn" onclick="adjustSetting('panelAlpha', 0.05)">更实</button></div>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>犯规暂停透明度</span><span class="set-value" id="statAlphaValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('statAlpha', -0.02)">更透明</button><button class="set-btn" onclick="adjustSetting('statAlpha', 0.02)">更实</button></div>
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>区域边框颜色</span><span class="set-value" id="borderColorValue"></span></div>
+        <input class="color-control" type="color" id="borderColorInput" onchange="setColorSetting('borderColor', this.value)" />
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>比分背景色</span><span class="set-value" id="scoreBgValue"></span></div>
+        <input class="color-control" type="color" id="scoreBgInput" onchange="setColorSetting('scoreBg', this.value)" />
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>分数字体颜色</span><span class="set-value" id="scoreTextValue"></span></div>
+        <input class="color-control" type="color" id="scoreTextInput" onchange="setColorSetting('scoreText', this.value)" />
+      </div>
+      <div class="set-line">
+        <div class="set-label"><span>标题位置</span><span class="set-value" id="titleOffsetValue"></span></div>
+        <div class="set-controls"><button class="set-btn" onclick="adjustSetting('titleOffset', -4)">往上</button><button class="set-btn" onclick="adjustSetting('titleOffset', 4)">往下</button></div>
+      </div>
+      <button class="bottom-set-btn primary" onclick="saveDisplaySettings(); closeDrawer()">确定</button>
+      <button class="bottom-set-btn" onclick="resetDisplaySettings()">还原比赛界面</button>
+    </div>
+
+    <script>
+      const displaySettingKey = 'bigScreenDisplaySettings';
+      const defaultDisplaySettings = {
+        titleScale: 1,
+        teamScale: 1,
+        scoreScale: 1,
+        timeScale: 1,
+        playerScale: 1,
+        playerRowScale: 1,
+        sideInset: 0,
+        panelAlpha: 0.78,
+        statAlpha: 0.055,
+        borderColor: '#ffffff',
+        scoreBg: '#132a54',
+        scoreText: '#ffffff',
+        titleOffset: 0,
+      };
+      const settingRanges = {
+        titleScale: [0.7, 1.45],
+        teamScale: [0.7, 1.45],
+        scoreScale: [0.65, 1.35],
+        timeScale: [0.65, 1.35],
+        playerScale: [0.65, 1.35],
+        playerRowScale: [0.7, 1.45],
+        sideInset: [-8, 12],
+        panelAlpha: [0.2, 0.95],
+        statAlpha: [0.02, 0.28],
+        titleOffset: [-60, 60],
+      };
+      let displaySettings = loadDisplaySettings();
+      let matchData = safeStorageJson('matchConfig', {});
+      let gameChannel = 'BroadcastChannel' in window ? new BroadcastChannel('basketball-score-sync') : null;
+
+      applyDisplaySettings();
+      initScreen();
+
+      function loadDisplaySettings() {
+        try {
+          return { ...defaultDisplaySettings, ...safeStorageJson(displaySettingKey, {}) };
+        } catch (error) {
+          return { ...defaultDisplaySettings };
+        }
+      }
+
+      function saveDisplaySettings() {
+        localStorage.setItem(displaySettingKey, JSON.stringify(displaySettings));
+      }
+
+      function clampValue(name, value) {
+        const range = settingRanges[name];
+        if (!range) return value;
+        return Math.min(range[1], Math.max(range[0], value));
+      }
+
+      function adjustSetting(name, step) {
+        displaySettings[name] = Number(clampValue(name, Number(displaySettings[name]) + step).toFixed(3));
+        applyDisplaySettings();
+        saveDisplaySettings();
+      }
+
+      function setColorSetting(name, value) {
+        displaySettings[name] = value;
+        applyDisplaySettings();
+        saveDisplaySettings();
+      }
+
+      function hexToRgba(hex, alpha) {
+        const safeHex = String(hex || '#ffffff').replace('#', '');
+        const r = parseInt(safeHex.substring(0, 2), 16);
+        const g = parseInt(safeHex.substring(2, 4), 16);
+        const b = parseInt(safeHex.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+
+      function scaledClamp(minPx, vw, maxPx, scale) {
+        return `clamp(${Math.round(minPx * scale)}px, ${(vw * scale).toFixed(2)}vw, ${Math.round(maxPx * scale)}px)`;
+      }
+
+      function applyDisplaySettings() {
+        const root = document.documentElement.style;
+        root.setProperty('--title-font', scaledClamp(34, 3.8, 64, displaySettings.titleScale));
+        root.setProperty('--team-font', scaledClamp(24, 2.4, 42, displaySettings.teamScale));
+        root.setProperty('--score-font', scaledClamp(88, 11, 190, displaySettings.scoreScale));
+        root.setProperty('--time-font', scaledClamp(52, 6.4, 110, displaySettings.timeScale));
+        root.setProperty('--player-font', scaledClamp(16, 1.4, 25, displaySettings.playerScale));
+        root.setProperty('--player-row-height', scaledClamp(34, 4.7, 54, displaySettings.playerRowScale));
+        root.setProperty('--side-width', `${Math.max(16, 24 - displaySettings.sideInset)}fr`);
+        root.setProperty('--center-width', `${52 + displaySettings.sideInset * 2}fr`);
+        root.setProperty('--panel-alpha', displaySettings.panelAlpha);
+        root.setProperty('--stat-alpha', displaySettings.statAlpha);
+        root.setProperty('--border-color', hexToRgba(displaySettings.borderColor, 0.72));
+        root.setProperty('--score-bg', hexToRgba(displaySettings.scoreBg, 0.62));
+        root.setProperty('--score-text', displaySettings.scoreText);
+        root.setProperty('--title-offset', `${displaySettings.titleOffset}px`);
+        updateSettingLabels();
+      }
+
+      function updateSettingLabels() {
+        const labels = {
+          titleScaleValue: `${Math.round(displaySettings.titleScale * 100)}%`,
+          teamScaleValue: `${Math.round(displaySettings.teamScale * 100)}%`,
+          scoreScaleValue: `${Math.round(displaySettings.scoreScale * 100)}%`,
+          timeScaleValue: `${Math.round(displaySettings.timeScale * 100)}%`,
+          playerScaleValue: `${Math.round(displaySettings.playerScale * 100)}%`,
+          playerRowScaleValue: `${Math.round(displaySettings.playerRowScale * 100)}%`,
+          sideInsetValue: `${displaySettings.sideInset}`,
+          panelAlphaValue: `${Math.round(displaySettings.panelAlpha * 100)}%`,
+          statAlphaValue: `${Math.round(displaySettings.statAlpha * 100)}%`,
+          borderColorValue: displaySettings.borderColor,
+          scoreBgValue: displaySettings.scoreBg,
+          scoreTextValue: displaySettings.scoreText,
+          titleOffsetValue: `${displaySettings.titleOffset}px`,
+        };
+        Object.keys(labels).forEach(id => {
+          const node = document.getElementById(id);
+          if (node) node.innerText = labels[id];
+        });
+        const colorInputs = {
+          borderColorInput: displaySettings.borderColor,
+          scoreBgInput: displaySettings.scoreBg,
+          scoreTextInput: displaySettings.scoreText,
+        };
+        Object.keys(colorInputs).forEach(id => {
+          const node = document.getElementById(id);
+          if (node) node.value = colorInputs[id];
+        });
+      }
+
+      function resetDisplaySettings() {
+        if (!confirm('确定还原大屏显示设置吗？')) return;
+        displaySettings = { ...defaultDisplaySettings };
+        saveDisplaySettings();
+        applyDisplaySettings();
+      }
+
+      function getMatchTitle(data = {}) {
+        return data.title || matchData.matchTitle || '运启新城 同心共赢';
+      }
+
+      function initScreen() {
+        document.getElementById('titleDom').innerText = getMatchTitle();
+        applyTeamColors(matchData.homeColor, matchData.awayColor);
+        document.getElementById('homeName').innerText = matchData.homeTeam || '总部';
+        document.getElementById('awayName').innerText = matchData.awayTeam || '文体';
+        let homeHtml = '';
+        let awayHtml = '';
+        let homeArr = matchData.homePlayerList || [];
+        let awayArr = matchData.awayPlayerList || [];
+        homeArr.forEach(item => {
+          homeHtml += `<div class="player-item ${item.isPlay ? 'is-playing' : ''}"><span>${escapeHtml(item.num)}</span><span>${escapeHtml(item.name)}</span><span class="score-num">0</span><span>0</span></div>`;
+        });
+        awayArr.forEach(item => {
+          awayHtml += `<div class="player-item ${item.isPlay ? 'is-playing' : ''}"><span>${escapeHtml(item.num)}</span><span>${escapeHtml(item.name)}</span><span class="score-num">0</span><span>0</span></div>`;
+        });
+        document.getElementById('homePlayerList').innerHTML = homeHtml;
+        document.getElementById('awayPlayerList').innerHTML = awayHtml;
+      }
+
+      document.getElementById('titleDom').addEventListener('click', () => {
+        document.getElementById('setDrawer').classList.add('open');
+      });
+
+      function applyTeamColors(homeColor, awayColor) {
+        const homeHead = document.getElementById('homeName');
+        const awayHead = document.getElementById('awayName');
+        if (homeColor) homeHead.style.background = `linear-gradient(90deg, ${homeColor}, rgba(13, 29, 58, 0.92))`;
+        if (awayColor) awayHead.style.background = `linear-gradient(90deg, ${awayColor}, rgba(13, 29, 58, 0.92))`;
+        homeHead.style.color = getReadableTextColor(homeColor || '#0070ff');
+        awayHead.style.color = getReadableTextColor(awayColor || '#ffffff');
+      }
+
+      function getReadableTextColor(color) {
+        const hex = color.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#07111f' : '#fff';
+      }
+
+      function closeDrawer() {
+        document.getElementById('setDrawer').classList.remove('open');
+      }
+
+      function applyTimeVisibility(data) {
+        const showTime = data.showTime !== false;
+        const show24s = data.show24s !== false;
+        const timeRow = document.getElementById('timeRow');
+        const gameTime = document.getElementById('gameTime');
+        const shot24 = document.getElementById('shot24');
+        timeRow.classList.toggle('is-hidden', !showTime && !show24s);
+        timeRow.classList.toggle('only-game-time', showTime && !show24s);
+        gameTime.classList.toggle('is-hidden', !showTime);
+        shot24.classList.toggle('is-hidden', !show24s);
+      }
+
+      function getDisplayPlayers(players, data) {
+        return players
+          .map((player, idx) => ({ player, idx }))
+          .sort((a, b) => {
+            if (data.sortByScore) return (b.player.score || 0) - (a.player.score || 0) || a.idx - b.idx;
+            if (data.sortByPlayer) return Number(b.player.isPlay) - Number(a.player.isPlay) || a.idx - b.idx;
+            return a.idx - b.idx;
+          })
+          .map(item => item.player);
+      }
+
+      function renderGameData(data) {
+        if (!data || !data.homeName) return;
+        document.getElementById('titleDom').innerText = getMatchTitle(data);
+        document.getElementById('homeName').innerText = data.homeName;
+        applyTeamColors(data.homeColor, data.awayColor);
+        document.getElementById('awayName').innerText = data.awayName;
+        document.getElementById('homeScore').innerText = String(data.homeScore).padStart(2, '0');
+        document.getElementById('awayScore').innerText = String(data.awayScore).padStart(2, '0');
+        applyTimeVisibility(data);
+        document.getElementById('gameTime').innerText = `${data.gameMin}:${String(data.gameSec).padStart(2, '0')}`;
+        document.getElementById('shot24').innerText = data.shot24;
+        document.getElementById('currentSection').innerText = data.section;
+        document.getElementById('homeFoul').innerText = data.homeFoul;
+        document.getElementById('awayFoul').innerText = data.awayFoul;
+        document.getElementById('homeTimeout').innerText = data.homeTimeout;
+        document.getElementById('awayTimeout').innerText = data.awayTimeout;
+        document.getElementById('leftBall').style.opacity = data.ballSide === 'home' ? '1' : '0.2';
+        document.getElementById('rightBall').style.opacity = data.ballSide === 'away' ? '1' : '0.2';
+        let homeHtml = '';
+        let awayHtml = '';
+        getDisplayPlayers(data.homePlayers, data).forEach(p => {
+          homeHtml += `<div class="player-item ${p.isPlay ? 'is-playing' : ''}"><span>${escapeHtml(p.num)}</span><span>${escapeHtml(p.name)}</span><span class="score-num">${escapeHtml(p.score)}</span><span>${escapeHtml(p.foul)}</span></div>`;
+        });
+        getDisplayPlayers(data.awayPlayers, data).forEach(p => {
+          awayHtml += `<div class="player-item ${p.isPlay ? 'is-playing' : ''}"><span>${escapeHtml(p.num)}</span><span>${escapeHtml(p.name)}</span><span class="score-num">${escapeHtml(p.score)}</span><span>${escapeHtml(p.foul)}</span></div>`;
+        });
+        document.getElementById('homePlayerList').innerHTML = homeHtml;
+        document.getElementById('awayPlayerList').innerHTML = awayHtml;
+      }
+
+      function syncFromCtrl() {
+        renderGameData(safeStorageJson('matchGameData', {}));
+      }
+
+      if (gameChannel) {
+        gameChannel.onmessage = event => {
+          if (event.data && event.data.type === 'gameData') renderGameData(event.data.payload);
+          if (event.data && event.data.type === 'matchConfig') {
+            matchData = event.data.payload;
+            document.getElementById('titleDom').innerText = getMatchTitle();
+            applyTimeVisibility(matchData);
+          }
+        };
+      }
+
+      window.addEventListener('storage', event => {
+        if (event.key === 'matchGameData' && event.newValue) renderGameData(safeJsonParse(event.newValue, {}));
+        if (event.key === 'matchConfig' && event.newValue) {
+          matchData = safeJsonParse(event.newValue, {});
+          document.getElementById('titleDom').innerText = getMatchTitle();
+          applyTimeVisibility(matchData);
+        }
+      });
+
+      setInterval(syncFromCtrl, 2000);
+      syncFromCtrl();
+    </script>
+  </body>
+</html>

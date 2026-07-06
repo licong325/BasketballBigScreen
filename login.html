@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>篮球计分大屏系统-登录</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Microsoft Yahei', 'PingFang SC', sans-serif;
+      }
+
+      :root {
+        --mouse-x: 50%;
+        --mouse-y: 50%;
+        --accent: #ffb020;
+        --cyan: #27e4ff;
+        --ink: #07111f;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+      }
+
+      body {
+        min-height: 100vh;
+        overflow: hidden;
+        color: #fff;
+        background:
+          radial-gradient(circle at var(--mouse-x) var(--mouse-y), rgba(39, 228, 255, 0.18), transparent 26%),
+          radial-gradient(circle at 16% 18%, rgba(255, 176, 32, 0.22), transparent 24%),
+          linear-gradient(135deg, #050a14 0%, #0b1730 44%, #101d38 100%);
+      }
+
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: radial-gradient(circle at center, black, transparent 78%);
+        animation: gridMove 12s linear infinite;
+        pointer-events: none;
+      }
+
+      .court-lines {
+        position: fixed;
+        inset: -12%;
+        opacity: 0.2;
+        background:
+          radial-gradient(circle at 50% 50%, transparent 0 9%, rgba(39, 228, 255, 0.75) 9.3% 9.7%, transparent 10%),
+          linear-gradient(90deg, transparent 49.8%, rgba(39, 228, 255, 0.8) 50%, transparent 50.2%),
+          linear-gradient(rgba(39, 228, 255, 0.38), rgba(39, 228, 255, 0.38)) center / 64% 1px no-repeat;
+        transform: perspective(900px) rotateX(62deg) translateY(19%);
+        animation: courtPulse 4.6s ease-in-out infinite;
+        pointer-events: none;
+      }
+
+      .login-shell {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(360px, 460px);
+        align-items: center;
+        gap: clamp(28px, 6vw, 86px);
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .brand-panel {
+        min-width: 0;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 34px;
+        padding: 0 12px;
+        border: 1px solid rgba(39, 228, 255, 0.34);
+        border-radius: 999px;
+        color: #aeeeff;
+        background: rgba(5, 15, 31, 0.5);
+        backdrop-filter: blur(12px);
+        font-size: 14px;
+        letter-spacing: 0;
+      }
+
+      .live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #25f28f;
+        box-shadow: 0 0 16px #25f28f;
+        animation: blink 1.3s ease-in-out infinite;
+      }
+
+      h1 {
+        margin-top: 22px;
+        font-size: clamp(46px, 6.2vw, 82px);
+        line-height: 1.04;
+        letter-spacing: 0;
+      }
+
+      .highlight {
+        display: block;
+        color: var(--accent);
+        text-shadow: 0 0 28px rgba(255, 176, 32, 0.28);
+      }
+
+      .brand-copy {
+        max-width: 580px;
+        margin-top: 18px;
+        color: rgba(230, 242, 255, 0.76);
+        font-size: 18px;
+        line-height: 1.8;
+      }
+
+      .stat-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        max-width: 620px;
+        margin-top: 34px;
+      }
+
+      .stat-card {
+        position: relative;
+        overflow: hidden;
+        min-height: 104px;
+        padding: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.07);
+        backdrop-filter: blur(16px);
+        transform: translateY(0);
+        transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+      }
+
+      .stat-card::after {
+        content: '';
+        position: absolute;
+        inset: auto -30% -42% -30%;
+        height: 70%;
+        background: radial-gradient(circle, rgba(39, 228, 255, 0.24), transparent 68%);
+      }
+
+      .stat-card:hover {
+        transform: translateY(-6px);
+        border-color: rgba(39, 228, 255, 0.42);
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .stat-num {
+        display: block;
+        color: #fff;
+        font-size: 30px;
+        font-weight: 800;
+      }
+
+      .stat-label {
+        display: block;
+        margin-top: 8px;
+        color: rgba(230, 242, 255, 0.66);
+        font-size: 14px;
+      }
+
+      .login-card {
+        position: relative;
+        overflow: hidden;
+        padding: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 12px;
+        background:
+          linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06)),
+          rgba(6, 16, 32, 0.72);
+        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        backdrop-filter: blur(22px);
+        transform-style: preserve-3d;
+        transition: transform 0.18s ease;
+      }
+
+      .login-card::before {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        background: linear-gradient(120deg, transparent 20%, rgba(39, 228, 255, 0.28), transparent 55%, rgba(255, 176, 32, 0.22));
+        transform: translateX(-72%);
+        animation: scanLight 5s ease-in-out infinite;
+        pointer-events: none;
+      }
+
+      .card-content {
+        position: relative;
+        z-index: 1;
+      }
+
+      .system-badge {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 44px;
+        margin-bottom: 26px;
+        padding: 0 12px;
+        border: 1px solid rgba(39, 228, 255, 0.22);
+        border-radius: 8px;
+        background: rgba(3, 11, 24, 0.42);
+        color: #dff9ff;
+        font-size: 14px;
+      }
+
+      .badge-score {
+        color: var(--accent);
+        font-weight: 800;
+      }
+
+      .login-title {
+        font-size: 30px;
+        margin-bottom: 8px;
+      }
+
+      .login-subtitle {
+        color: rgba(230, 242, 255, 0.68);
+        font-size: 15px;
+        margin-bottom: 28px;
+      }
+
+      label {
+        display: block;
+        color: rgba(230, 242, 255, 0.9);
+        font-size: 15px;
+        margin-bottom: 8px;
+      }
+
+      .field {
+        position: relative;
+        margin-bottom: 18px;
+      }
+
+      .field input {
+        width: 100%;
+        height: 52px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        padding: 0 48px 0 14px;
+        background: rgba(5, 15, 31, 0.62);
+        color: #fff;
+        font-size: 17px;
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+      }
+
+      .field input::placeholder {
+        color: rgba(230, 242, 255, 0.36);
+      }
+
+      .field input:focus {
+        border-color: rgba(39, 228, 255, 0.72);
+        background: rgba(5, 15, 31, 0.84);
+        box-shadow: 0 0 0 4px rgba(39, 228, 255, 0.12), 0 0 28px rgba(39, 228, 255, 0.14);
+      }
+
+      .field-icon {
+        position: absolute;
+        right: 14px;
+        bottom: 14px;
+        color: rgba(39, 228, 255, 0.86);
+        font-size: 20px;
+      }
+
+      .error {
+        min-height: 24px;
+        color: #ff8f8f;
+        text-align: center;
+        margin: 2px 0 12px;
+        font-size: 15px;
+      }
+
+      .login-btn {
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+        height: 54px;
+        border: none;
+        border-radius: 8px;
+        background: linear-gradient(90deg, #ff8a00, #ffbe2e 46%, #27e4ff);
+        color: #07111f;
+        font-size: 18px;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 18px 42px rgba(255, 176, 32, 0.22);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+      }
+
+      .login-btn::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.52), transparent);
+        transform: translateX(-120%);
+        transition: transform 0.45s ease;
+      }
+
+      .login-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 24px 54px rgba(39, 228, 255, 0.24);
+      }
+
+      .login-btn:hover::after {
+        transform: translateX(120%);
+      }
+
+      .login-foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 18px;
+        color: rgba(230, 242, 255, 0.48);
+        font-size: 13px;
+      }
+
+      .basketball {
+        position: fixed;
+        right: 8vw;
+        bottom: 8vh;
+        width: 168px;
+        height: 168px;
+        border-radius: 50%;
+        opacity: 0.24;
+        background:
+          radial-gradient(circle at 34% 28%, #ffd69b 0 6%, transparent 7%),
+          radial-gradient(circle at center, #f07c19 0 62%, #9f3d0e 100%);
+        box-shadow: 0 0 60px rgba(255, 138, 0, 0.38);
+        animation: floatBall 5.4s ease-in-out infinite;
+        pointer-events: none;
+      }
+
+      .basketball::before,
+      .basketball::after {
+        content: '';
+        position: absolute;
+        inset: 13%;
+        border: 4px solid rgba(68, 24, 8, 0.78);
+        border-left-color: transparent;
+        border-right-color: transparent;
+        border-radius: 50%;
+      }
+
+      .basketball::after {
+        inset: 0 44%;
+        border-top: none;
+        border-bottom: none;
+        border-left-color: rgba(68, 24, 8, 0.78);
+        border-right-color: rgba(68, 24, 8, 0.78);
+      }
+
+      @keyframes gridMove {
+        from {
+          background-position: 0 0, 0 0;
+        }
+        to {
+          background-position: 44px 44px, 44px 44px;
+        }
+      }
+
+      @keyframes courtPulse {
+        0%,
+        100% {
+          opacity: 0.16;
+        }
+        50% {
+          opacity: 0.29;
+        }
+      }
+
+      @keyframes blink {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.45);
+          opacity: 0.52;
+        }
+      }
+
+      @keyframes scanLight {
+        0%,
+        45% {
+          transform: translateX(-72%);
+        }
+        70%,
+        100% {
+          transform: translateX(72%);
+        }
+      }
+
+      @keyframes floatBall {
+        0%,
+        100% {
+          transform: translate3d(0, 0, 0) rotate(0deg);
+        }
+        50% {
+          transform: translate3d(-18px, -28px, 0) rotate(16deg);
+        }
+      }
+
+      @media (max-width: 880px) {
+        body {
+          overflow: auto;
+        }
+
+        .login-shell {
+          grid-template-columns: 1fr;
+          align-content: center;
+          padding: 42px 0;
+        }
+
+        .brand-copy {
+          font-size: 16px;
+        }
+
+        .stat-row {
+          grid-template-columns: 1fr;
+          margin-top: 22px;
+        }
+
+        .login-card {
+          padding: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="court-lines"></div>
+    <div class="basketball"></div>
+
+    <main class="login-shell">
+      <section class="brand-panel">
+        <div class="eyebrow"><span class="live-dot"></span>ARENA LIVE SCOREBOARD</div>
+        <h1>
+          篮球计分
+          <span class="highlight">大屏系统</span>
+        </h1>
+        <p class="brand-copy">
+          为球馆比赛现场准备的计分控制台和观众大屏，一台电脑即可完成赛事配置、实时计分和外接屏展示。
+        </p>
+        <div class="stat-row">
+          <div class="stat-card">
+            <span class="stat-num">24s</span>
+            <span class="stat-label">进攻时间联动</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-num">LIVE</span>
+            <span class="stat-label">多窗口实时同步</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-num">HD</span>
+            <span class="stat-label">外接大屏展示</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="login-card" id="loginCard">
+        <div class="card-content">
+          <div class="system-badge">
+            <span>比赛控制入口</span>
+            <span class="badge-score">HOME 88 : 86 AWAY</span>
+          </div>
+          <h2 class="login-title">账号登录</h2>
+          <div class="login-subtitle">登录后进入赛事配置、记分板和比分大屏。</div>
+          <form id="loginForm">
+            <div class="field">
+              <label for="username">账号</label>
+              <input id="username" autocomplete="username" placeholder="请输入账号" />
+              <span class="field-icon">#</span>
+            </div>
+            <div class="field">
+              <label for="password">密码</label>
+              <input id="password" type="password" autocomplete="current-password" placeholder="请输入密码" />
+              <span class="field-icon">●</span>
+            </div>
+            <div class="error" id="errorText"></div>
+            <button class="login-btn" type="submit">进入系统</button>
+          </form>
+          <div class="login-foot">
+            <span>离线可用</span>
+            <span>本机保存比赛数据</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="auth.js"></script>
+    <script>
+      const form = document.getElementById('loginForm');
+      const errorText = document.getElementById('errorText');
+      const loginCard = document.getElementById('loginCard');
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect') || HOME_PAGE;
+
+      window.addEventListener('pointermove', event => {
+        const x = `${(event.clientX / window.innerWidth) * 100}%`;
+        const y = `${(event.clientY / window.innerHeight) * 100}%`;
+        document.documentElement.style.setProperty('--mouse-x', x);
+        document.documentElement.style.setProperty('--mouse-y', y);
+
+        const rect = loginCard.getBoundingClientRect();
+        const cardX = event.clientX - rect.left - rect.width / 2;
+        const cardY = event.clientY - rect.top - rect.height / 2;
+        const rotateY = Math.max(Math.min(cardX / 28, 8), -8);
+        const rotateX = Math.max(Math.min(-cardY / 34, 7), -7);
+        loginCard.style.transform = `perspective(900px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+      });
+
+      loginCard.addEventListener('pointerleave', () => {
+        loginCard.style.transform = 'perspective(900px) rotateX(0deg) rotateY(0deg)';
+      });
+
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        if (loginWithAccount(username, password)) {
+          allowPageUnload();
+          window.location.href = redirect;
+          return;
+        }
+
+        errorText.innerText = '账号或密码错误';
+      });
+    </script>
+  </body>
+</html>

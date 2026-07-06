@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>篮球计分操控台</title>
+    <script src="auth.js"></script>
+    <script src="unloadGuard.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Microsoft Yahei', 'PingFang SC', sans-serif;
+      }
+
+      :root {
+        --bg: #050a14;
+        --panel: rgba(9, 20, 40, 0.82);
+        --panel-strong: rgba(13, 29, 58, 0.94);
+        --line: rgba(255, 255, 255, 0.13);
+        --cyan: #27e4ff;
+        --orange: #ffb020;
+        --green: #26d97f;
+        --red: #ff5c6c;
+        --purple: #b56cff;
+        --text: #eef7ff;
+        --muted: rgba(238, 247, 255, 0.66);
+      }
+
+      body {
+        min-height: 100vh;
+        padding: 18px;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 14% 18%, rgba(255, 176, 32, 0.18), transparent 24%),
+          radial-gradient(circle at 84% 12%, rgba(39, 228, 255, 0.16), transparent 26%),
+          linear-gradient(135deg, #050a14 0%, #0a1730 52%, #101b35 100%);
+        overflow-x: hidden;
+      }
+
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: radial-gradient(circle at center, black, transparent 78%);
+        pointer-events: none;
+      }
+
+      .page-shell {
+        position: relative;
+        z-index: 1;
+        width: min(1480px, 100%);
+        margin: 0 auto;
+      }
+
+      .top-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 14px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(5, 15, 31, 0.62);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .brand-title {
+        font-size: 24px;
+        font-weight: 900;
+      }
+
+      .brand-sub {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .hotkeys {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .hotkeys span {
+        min-height: 30px;
+        padding: 6px 10px;
+        border: 1px solid rgba(39, 228, 255, 0.22);
+        border-radius: 999px;
+        color: #dff9ff;
+        background: rgba(39, 228, 255, 0.08);
+        font-size: 13px;
+      }
+
+      .top-time-row {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr 0.7fr;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .time-card {
+        position: relative;
+        overflow: hidden;
+        min-height: 132px;
+        padding: 16px;
+        text-align: center;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+      }
+
+      .time-card::after {
+        content: '';
+        position: absolute;
+        inset: auto -20% -45% -20%;
+        height: 80%;
+        background: radial-gradient(circle, rgba(39, 228, 255, 0.22), transparent 68%);
+        pointer-events: none;
+      }
+
+      .time-card h3 {
+        position: relative;
+        z-index: 1;
+        margin-bottom: 8px;
+        color: var(--muted);
+        font-size: 17px;
+        font-weight: 700;
+      }
+
+      .match-time,
+      .shot-time,
+      .section-text {
+        position: relative;
+        z-index: 1;
+        line-height: 1;
+        font-weight: 900;
+      }
+
+      .match-time {
+        color: var(--green);
+        font-size: clamp(54px, 6vw, 82px);
+        text-shadow: 0 0 24px rgba(38, 217, 127, 0.26);
+      }
+
+      .shot-time {
+        color: var(--orange);
+        font-size: clamp(54px, 6vw, 82px);
+        text-shadow: 0 0 24px rgba(255, 176, 32, 0.28);
+      }
+
+      .section-text {
+        color: var(--cyan);
+        font-size: clamp(42px, 5vw, 66px);
+        text-shadow: 0 0 24px rgba(39, 228, 255, 0.28);
+      }
+
+      .btn-top-group {
+        position: sticky;
+        top: 10px;
+        z-index: 10;
+        display: grid;
+        grid-template-columns: repeat(10, minmax(92px, 1fr));
+        gap: 8px;
+        margin-bottom: 14px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(5, 15, 31, 0.72);
+        backdrop-filter: blur(18px);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.26);
+      }
+
+      button {
+        border: none;
+        cursor: pointer;
+        font-weight: 800;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+      }
+
+      .ctrl-btn {
+        min-height: 48px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        color: #07111f;
+        font-size: 15px;
+      }
+
+      .ctrl-btn small {
+        display: block;
+        margin-top: 3px;
+        color: rgba(7, 17, 31, 0.72);
+        font-size: 11px;
+      }
+
+      .btn-green {
+        background: linear-gradient(90deg, #23dd87, #27e4ff);
+      }
+
+      .btn-orange {
+        background: linear-gradient(90deg, #ff8a00, #ffbe2e);
+      }
+
+      .btn-red {
+        background: linear-gradient(90deg, #ff5c6c, #ff8a8a);
+      }
+
+      .btn-blue {
+        background: linear-gradient(90deg, #168dff, #27e4ff);
+      }
+
+      .btn-purple {
+        background: linear-gradient(90deg, #8b5cf6, #d16cff);
+      }
+
+      .btn-darkgreen {
+        background: linear-gradient(90deg, #20b66f, #25f28f);
+      }
+
+      .main-wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 14px;
+      }
+
+      .team-panel {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        box-shadow: 0 20px 58px rgba(0, 0, 0, 0.28);
+      }
+
+      .team-header {
+        display: grid;
+        grid-template-columns: minmax(120px, 1fr) auto minmax(260px, auto);
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        color: #fff;
+        background: var(--panel-strong);
+        font-size: 22px;
+        font-weight: 900;
+      }
+
+      .team-header > span:nth-child(2) {
+        min-height: 38px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: rgba(5, 15, 31, 0.32);
+        white-space: nowrap;
+      }
+
+      .head-btn-group {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .head-btn-group button,
+      .foul-btn,
+      .revoke-btn {
+        min-height: 34px;
+        padding: 7px 10px;
+        border-radius: 7px;
+        color: #fff;
+      }
+
+      .btn-addstop,
+      .btn-ball {
+        background: rgba(39, 228, 255, 0.2);
+        border: 1px solid rgba(39, 228, 255, 0.34);
+      }
+
+      .btn-revstop {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+      }
+
+      .table-head,
+      .player-row {
+        display: grid;
+        grid-template-columns: 58px 72px minmax(92px, 1fr) 70px 70px minmax(250px, 1.4fr);
+        gap: 8px;
+        align-items: center;
+      }
+
+      .table-head {
+        padding: 11px 12px;
+        color: rgba(238, 247, 255, 0.72);
+        background: rgba(39, 228, 255, 0.09);
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .player-row {
+        min-height: 58px;
+        padding: 10px 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(238, 247, 255, 0.94);
+        font-size: 16px;
+      }
+
+      .player-row.is-playing {
+        background: rgba(38, 217, 127, 0.12);
+        box-shadow: inset 6px 0 0 var(--green);
+        font-weight: 900;
+      }
+
+      .player-row input[type='checkbox'] {
+        width: 22px;
+        height: 22px;
+        accent-color: var(--green);
+      }
+
+      .score-btn {
+        width: 36px;
+        height: 34px;
+        margin-right: 4px;
+        border-radius: 7px;
+        color: #07111f;
+        font-weight: 900;
+      }
+
+      .add1,
+      .add2,
+      .add3 {
+        background: linear-gradient(90deg, #23dd87, #27e4ff);
+      }
+
+      .foul-btn {
+        background: rgba(255, 92, 108, 0.22);
+        border: 1px solid rgba(255, 92, 108, 0.38);
+      }
+
+      .revoke-btn {
+        background: rgba(255, 176, 32, 0.22);
+        border: 1px solid rgba(255, 176, 32, 0.38);
+      }
+
+      .score-box,
+      .foul-box {
+        width: 44px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        color: #07111f;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .score-box {
+        background: linear-gradient(90deg, #ff8a00, #ffbe2e);
+      }
+
+      .foul-box {
+        background: linear-gradient(90deg, #ff5c6c, #ff8a8a);
+      }
+
+      @media (max-width: 1180px) {
+        .btn-top-group {
+          grid-template-columns: repeat(5, minmax(120px, 1fr));
+        }
+
+        .main-wrap {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        body {
+          padding: 12px;
+        }
+
+        .top-head,
+        .team-header {
+          grid-template-columns: 1fr;
+        }
+
+        .top-head {
+          display: grid;
+        }
+
+        .hotkeys {
+          justify-content: flex-start;
+        }
+
+        .top-time-row,
+        .btn-top-group {
+          grid-template-columns: 1fr;
+        }
+
+        .table-head,
+        .player-row {
+          grid-template-columns: 42px 52px minmax(78px, 1fr) 48px 48px minmax(180px, 1.2fr);
+          font-size: 13px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="top-head">
+        <div class="brand">
+          <div class="brand-title">记分控制台</div>
+          <div class="brand-sub">实时控制比赛时间、24 秒、得分、犯规、暂停和球权</div>
+        </div>
+        <div class="hotkeys">
+          <span>空格 开始/暂停</span>
+          <span>A 回表24</span>
+          <span>S 回表14</span>
+          <span>D 暂停24秒</span>
+          <span>F 继续24秒</span>
+        </div>
+      </header>
+
+      <section class="top-time-row">
+        <div class="time-card">
+          <h3>比赛时间</h3>
+          <div class="match-time" id="gameTimeText">12:00</div>
+        </div>
+        <div class="time-card">
+          <h3>进攻时间</h3>
+          <div class="shot-time" id="shot24Text">24</div>
+        </div>
+        <div class="time-card">
+          <h3>当前节次</h3>
+          <div class="section-text">第<span id="sectionNum">1</span>节</div>
+        </div>
+      </section>
+
+      <section class="btn-top-group">
+        <button class="ctrl-btn btn-green" id="startTimer">开始计时 <small>空格</small></button>
+        <button class="ctrl-btn btn-orange" id="pauseTimer">暂停 <small>空格</small></button>
+        <button class="ctrl-btn btn-red" id="resetAllTime">重置</button>
+        <button class="ctrl-btn btn-blue" id="adjustTime">调整时间</button>
+        <button class="ctrl-btn btn-blue" id="back24A">回表24 <small>A</small></button>
+        <button class="ctrl-btn btn-blue" id="back14S">回表14 <small>S</small></button>
+        <button class="ctrl-btn btn-darkgreen" id="pauseShot">暂停进攻时间 <small>D</small></button>
+        <button class="ctrl-btn btn-orange" id="resumeShot">继续进攻时间 <small>F</small></button>
+        <button class="ctrl-btn btn-darkgreen" id="beeVoice">蜂鸣声</button>
+        <button class="ctrl-btn btn-purple" id="nextSection">下一节</button>
+      </section>
+
+      <section class="main-wrap">
+        <div class="team-panel">
+          <div class="team-header">
+            <span id="homeTeamName">总部</span>
+            <span>总分：<span id="homeTotalScore">0</span></span>
+            <div class="head-btn-group">
+              <button class="btn-addstop" onclick="addTimeout('home')">暂停+1</button>
+              <button class="btn-revstop" onclick="revTimeout('home')">撤回暂停</button>
+              <button class="btn-ball" onclick="setBallHome()">球权</button>
+            </div>
+          </div>
+          <div class="table-head">
+            <span>上场</span><span>号码</span><span>姓名</span><span>得分</span><span>犯规</span><span>操作</span>
+          </div>
+          <div id="homePlayerWrap"></div>
+        </div>
+
+        <div class="team-panel">
+          <div class="team-header">
+            <span id="awayTeamName">文体</span>
+            <span>总分：<span id="awayTotalScore">0</span></span>
+            <div class="head-btn-group">
+              <button class="btn-addstop" onclick="addTimeout('away')">暂停+1</button>
+              <button class="btn-revstop" onclick="revTimeout('away')">撤回暂停</button>
+              <button class="btn-ball" onclick="setBallAway()">球权</button>
+            </div>
+          </div>
+          <div class="table-head">
+            <span>上场</span><span>号码</span><span>姓名</span><span>得分</span><span>犯规</span><span>操作</span>
+          </div>
+          <div id="awayPlayerWrap"></div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      let baseConfig = safeStorageJson('matchConfig', {});
+      let gameData = safeStorageJson('matchGameData', null) || initDefaultData();
+      gameData.showTime = baseConfig.showTime !== false;
+      gameData.show24s = baseConfig.show24s !== false;
+      gameData.periodMinutes = Number(gameData.periodMinutes) || 12;
+      gameData.sortByScore = baseConfig.sortByScore === true;
+      gameData.sortByPlayer = gameData.sortByScore ? false : baseConfig.sortByPlayer === true;
+      gameData.timerRun = false;
+      gameData.shotRun = false;
+      gameData.timerInt = null;
+      gameData.shotInt = null;
+      gameData.history = Array.isArray(gameData.history) ? gameData.history : [];
+      let gameChannel = 'BroadcastChannel' in window ? new BroadcastChannel('basketball-score-sync') : null;
+      const controlLockKey = 'basketballScoreControlLock';
+      const controlId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const controlLockTtl = 5000;
+
+      function initDefaultData() {
+        return {
+          title: baseConfig.matchTitle || '运启新城 同心共赢',
+          homeName: baseConfig.homeTeam || '总部',
+          awayName: baseConfig.awayTeam || '文体',
+          homeColor: baseConfig.homeColor || '#007bff',
+          awayColor: baseConfig.awayColor || '#ffc107',
+          homePlayers: initPlayerArr(baseConfig.homePlayerList || []),
+          awayPlayers: initPlayerArr(baseConfig.awayPlayerList || []),
+          homeScore: 0,
+          awayScore: 0,
+          homeFoul: 0,
+          awayFoul: 0,
+          homeTimeout: 0,
+          awayTimeout: 0,
+          periodMinutes: 12,
+          gameMin: 12,
+          gameSec: 0,
+          shot24: 24,
+          showTime: baseConfig.showTime !== false,
+          show24s: baseConfig.show24s !== false,
+          sortByScore: baseConfig.sortByScore === true,
+          sortByPlayer: baseConfig.sortByScore === true ? false : baseConfig.sortByPlayer === true,
+          section: 1,
+          ballSide: 'none',
+          timerRun: false,
+          shotRun: false,
+          timerInt: null,
+          shotInt: null,
+          history: [],
+        };
+      }
+
+      function initPlayerArr(list) {
+        return list.map(item => ({ num: item.num, name: item.name, score: 0, foul: 0, isPlay: false }));
+      }
+
+      function applyTeamColors() {
+        const homeHeader = document.getElementById('homeTeamName').closest('.team-header');
+        const awayHeader = document.getElementById('awayTeamName').closest('.team-header');
+        homeHeader.style.background = `linear-gradient(90deg, ${gameData.homeColor || '#007bff'}, rgba(13, 29, 58, 0.94))`;
+        awayHeader.style.background = `linear-gradient(90deg, ${gameData.awayColor || '#ffc107'}, rgba(13, 29, 58, 0.94))`;
+        homeHeader.style.color = getReadableTextColor(gameData.homeColor || '#007bff');
+        awayHeader.style.color = getReadableTextColor(gameData.awayColor || '#ffc107');
+      }
+
+      function getReadableTextColor(color) {
+        const hex = color.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#07111f' : '#fff';
+      }
+
+      function getDisplayPlayers(players) {
+        return players
+          .map((player, idx) => ({ player, idx }))
+          .sort((a, b) => {
+            if (gameData.sortByScore) return (b.player.score || 0) - (a.player.score || 0) || a.idx - b.idx;
+            if (gameData.sortByPlayer) return Number(b.player.isPlay) - Number(a.player.isPlay) || a.idx - b.idx;
+            return a.idx - b.idx;
+          });
+      }
+
+      function getControlLock() {
+        try {
+          return safeStorageJson(controlLockKey, null);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function hasControlLock() {
+        const lock = getControlLock();
+        return lock && lock.id === controlId;
+      }
+
+      function claimControlLock(silent = false) {
+        const now = Date.now();
+        const lock = getControlLock();
+        if (lock && lock.id !== controlId && now - lock.time < controlLockTtl) {
+          if (!silent) alert('已有另一个记分控制台正在控制比赛，请关闭其他控制台或等待几秒后再操作。');
+          return false;
+        }
+        localStorage.setItem(controlLockKey, JSON.stringify({ id: controlId, time: now }));
+        return true;
+      }
+
+      function ensureControl() {
+        return hasControlLock() || claimControlLock();
+      }
+
+      function refreshControlLock() {
+        if (hasControlLock()) claimControlLock(true);
+      }
+
+      function releaseControlLock() {
+        if (hasControlLock()) localStorage.removeItem(controlLockKey);
+      }
+
+      function stopLocalTimers() {
+        clearInterval(gameData.timerInt);
+        clearInterval(gameData.shotInt);
+        gameData.timerInt = null;
+        gameData.shotInt = null;
+      }
+
+      function renderPlayer() {
+        document.getElementById('homeTeamName').innerText = gameData.homeName;
+        document.getElementById('awayTeamName').innerText = gameData.awayName;
+        applyTeamColors();
+        document.getElementById('homeTotalScore').innerText = gameData.homeScore;
+        document.getElementById('awayTotalScore').innerText = gameData.awayScore;
+        document.getElementById('sectionNum').innerText = gameData.section;
+        document.getElementById('gameTimeText').innerText = `${gameData.gameMin}:${String(gameData.gameSec).padStart(2, '0')}`;
+        document.getElementById('shot24Text').innerText = gameData.shot24;
+
+        let homeHtml = '';
+        getDisplayPlayers(gameData.homePlayers).forEach(({ player: p, idx }) => {
+          homeHtml += `
+        <div class="player-row ${p.isPlay ? 'is-playing' : ''}">
+            <input type="checkbox" ${p.isPlay ? 'checked' : ''} onchange="togglePlay('home',${idx})">
+            <span>${escapeHtml(p.num)}</span>
+            <span>${escapeHtml(p.name)}</span>
+            <span><div class="score-box">${p.score}</div></span>
+            <span><div class="foul-box">${p.foul}</div></span>
+            <span>
+                <button class="score-btn add1" onclick="addPoint('home',${idx},1)">+1</button>
+                <button class="score-btn add2" onclick="addPoint('home',${idx},2)">+2</button>
+                <button class="score-btn add3" onclick="addPoint('home',${idx},3)">+3</button>
+                <button class="foul-btn" onclick="addFoul('home',${idx})">犯规</button>
+                <button class="revoke-btn" onclick="revokeOperate('home',${idx})">撤回</button>
+            </span>
+        </div>`;
+        });
+        document.getElementById('homePlayerWrap').innerHTML = homeHtml;
+
+        let awayHtml = '';
+        getDisplayPlayers(gameData.awayPlayers).forEach(({ player: p, idx }) => {
+          awayHtml += `
+        <div class="player-row ${p.isPlay ? 'is-playing' : ''}">
+            <input type="checkbox" ${p.isPlay ? 'checked' : ''} onchange="togglePlay('away',${idx})">
+            <span>${escapeHtml(p.num)}</span>
+            <span>${escapeHtml(p.name)}</span>
+            <span><div class="score-box">${p.score}</div></span>
+            <span><div class="foul-box">${p.foul}</div></span>
+            <span>
+                <button class="score-btn add1" onclick="addPoint('away',${idx},1)">+1</button>
+                <button class="score-btn add2" onclick="addPoint('away',${idx},2)">+2</button>
+                <button class="score-btn add3" onclick="addPoint('away',${idx},3)">+3</button>
+                <button class="foul-btn" onclick="addFoul('away',${idx})">犯规</button>
+                <button class="revoke-btn" onclick="revokeOperate('away',${idx})">撤回</button>
+            </span>
+        </div>`;
+        });
+        document.getElementById('awayPlayerWrap').innerHTML = awayHtml;
+      }
+
+      function saveGameData() {
+        const dataToSave = { ...gameData, timerInt: null, shotInt: null };
+        localStorage.setItem('matchGameData', JSON.stringify(dataToSave));
+        if (gameChannel) gameChannel.postMessage({ type: 'gameData', payload: dataToSave });
+      }
+
+      function applyMatchConfig(config) {
+        baseConfig = config || {};
+        gameData.title = baseConfig.matchTitle || gameData.title;
+        gameData.homeName = baseConfig.homeTeam || gameData.homeName;
+        gameData.awayName = baseConfig.awayTeam || gameData.awayName;
+        gameData.homeColor = baseConfig.homeColor || gameData.homeColor;
+        gameData.awayColor = baseConfig.awayColor || gameData.awayColor;
+        gameData.showTime = baseConfig.showTime !== false;
+        gameData.show24s = baseConfig.show24s !== false;
+        gameData.sortByScore = baseConfig.sortByScore === true;
+        gameData.sortByPlayer = gameData.sortByScore ? false : baseConfig.sortByPlayer === true;
+        renderPlayer();
+      }
+
+      if (gameChannel) {
+        gameChannel.onmessage = event => {
+          if (event.data && event.data.type === 'matchConfig') applyMatchConfig(event.data.payload);
+        };
+      }
+
+      window.addEventListener('storage', event => {
+        if (event.key === 'matchConfig' && event.newValue) applyMatchConfig(safeJsonParse(event.newValue, {}));
+      });
+
+      function addPoint(side, idx, num) {
+        if (!ensureControl()) return;
+        let arr = side === 'home' ? gameData.homePlayers : gameData.awayPlayers;
+        arr[idx].score += num;
+        side === 'home' ? (gameData.homeScore += num) : (gameData.awayScore += num);
+        gameData.history.push({ type: 'point', side, idx, num });
+        resetShot24();
+      }
+
+      function addFoul(side, idx) {
+        if (!ensureControl()) return;
+        let arr = side === 'home' ? gameData.homePlayers : gameData.awayPlayers;
+        arr[idx].foul += 1;
+        side === 'home' ? (gameData.homeFoul += 1) : (gameData.awayFoul += 1);
+        gameData.history.push({ type: 'foul', side, idx, num: 1 });
+        saveGameData();
+        renderPlayer();
+      }
+
+      function revokeOperate(side, idx) {
+        if (!ensureControl()) return;
+        let arr = side === 'home' ? gameData.homePlayers : gameData.awayPlayers;
+        const historyIndex = gameData.history
+          .map((item, index) => ({ item, index }))
+          .reverse()
+          .find(({ item }) => item.side === side && item.idx === idx && (item.type === 'point' || item.type === 'foul'))?.index;
+        if (historyIndex === undefined) {
+          alert('当前球员没有可撤回的加分或犯规操作');
+          return;
+        }
+        const action = gameData.history.splice(historyIndex, 1)[0];
+        if (action.type === 'point') {
+          arr[idx].score = Math.max(0, arr[idx].score - action.num);
+          if (side === 'home') gameData.homeScore = Math.max(0, gameData.homeScore - action.num);
+          else gameData.awayScore = Math.max(0, gameData.awayScore - action.num);
+        }
+        if (action.type === 'foul') {
+          arr[idx].foul = Math.max(0, arr[idx].foul - 1);
+          if (side === 'home') gameData.homeFoul = Math.max(0, gameData.homeFoul - 1);
+          else gameData.awayFoul = Math.max(0, gameData.awayFoul - 1);
+        }
+        saveGameData();
+        renderPlayer();
+      }
+
+      function togglePlay(side, idx) {
+        if (!ensureControl()) return;
+        let arr = side === 'home' ? gameData.homePlayers : gameData.awayPlayers;
+        arr[idx].isPlay = !arr[idx].isPlay;
+        saveGameData();
+        renderPlayer();
+      }
+
+      function addTimeout(side) {
+        if (!ensureControl()) return;
+        side === 'home' ? gameData.homeTimeout++ : gameData.awayTimeout++;
+        saveGameData();
+        renderPlayer();
+      }
+
+      function revTimeout(side) {
+        if (!ensureControl()) return;
+        if (side === 'home' && gameData.homeTimeout > 0) gameData.homeTimeout--;
+        if (side === 'away' && gameData.awayTimeout > 0) gameData.awayTimeout--;
+        saveGameData();
+        renderPlayer();
+      }
+
+      function setBallHome() {
+        if (!ensureControl()) return;
+        gameData.ballSide = 'home';
+        saveGameData();
+        renderPlayer();
+      }
+
+      function setBallAway() {
+        if (!ensureControl()) return;
+        gameData.ballSide = 'away';
+        saveGameData();
+        renderPlayer();
+      }
+
+      document.getElementById('startTimer').onclick = () => {
+        if (!ensureControl()) return;
+        gameData.timerRun = true;
+        gameData.shotRun = true;
+        startGameTimer();
+        startShotTimer();
+      };
+
+      document.getElementById('pauseTimer').onclick = () => {
+        if (!ensureControl()) return;
+        gameData.timerRun = false;
+        gameData.shotRun = false;
+        stopLocalTimers();
+        saveGameData();
+        renderPlayer();
+      };
+
+      document.getElementById('resetAllTime').onclick = () => {
+        if (!ensureControl()) return;
+        stopLocalTimers();
+        gameData.gameMin = gameData.periodMinutes;
+        gameData.gameSec = 0;
+        gameData.shot24 = 24;
+        gameData.timerRun = false;
+        gameData.shotRun = false;
+        saveGameData();
+        renderPlayer();
+      };
+
+      document.getElementById('adjustTime').onclick = () => {
+        if (!ensureControl()) return;
+        const input = prompt('请输入每节比赛时长（分钟）', gameData.periodMinutes || gameData.gameMin || 12);
+        if (input === null) return;
+        const minutes = Number(input);
+        if (!Number.isInteger(minutes) || minutes <= 0) {
+          alert('请输入正整数分钟数');
+          return;
+        }
+        stopLocalTimers();
+        gameData.periodMinutes = Math.floor(minutes);
+        gameData.gameMin = Math.floor(minutes);
+        gameData.gameSec = 0;
+        gameData.timerRun = false;
+        gameData.shotRun = false;
+        saveGameData();
+        renderPlayer();
+      };
+
+      document.getElementById('back24A').onclick = () => {
+        if (!ensureControl()) return;
+        gameData.shot24 = 24;
+        saveGameData();
+        renderPlayer();
+      };
+      document.getElementById('back14S').onclick = () => {
+        if (!ensureControl()) return;
+        gameData.shot24 = 14;
+        saveGameData();
+        renderPlayer();
+      };
+      document.getElementById('pauseShot').onclick = () => {
+        if (!ensureControl()) return;
+        gameData.shotRun = false;
+        clearInterval(gameData.shotInt);
+        saveGameData();
+      };
+      document.getElementById('resumeShot').onclick = () => {
+        if (!ensureControl()) return;
+        gameData.shotRun = true;
+        startShotTimer();
+        saveGameData();
+      };
+      document.getElementById('nextSection').onclick = () => {
+        if (!ensureControl()) return;
+        gameData.section++;
+        gameData.gameMin = gameData.periodMinutes;
+        gameData.gameSec = 0;
+        gameData.shot24 = 24;
+        stopLocalTimers();
+        gameData.timerRun = false;
+        gameData.shotRun = false;
+        saveGameData();
+        renderPlayer();
+      };
+
+      function startGameTimer() {
+        clearInterval(gameData.timerInt);
+        gameData.timerInt = setInterval(() => {
+          if (!hasControlLock()) {
+            gameData.timerRun = false;
+            clearInterval(gameData.timerInt);
+            return;
+          }
+          if (!gameData.timerRun) return;
+          if (gameData.gameSec > 0) gameData.gameSec--;
+          else if (gameData.gameMin > 0) {
+            gameData.gameMin--;
+            gameData.gameSec = 59;
+          } else {
+            gameData.timerRun = false;
+            clearInterval(gameData.timerInt);
+          }
+          saveGameData();
+          renderPlayer();
+        }, 1000);
+      }
+
+      function startShotTimer() {
+        clearInterval(gameData.shotInt);
+        gameData.shotInt = setInterval(() => {
+          if (!hasControlLock()) {
+            gameData.shotRun = false;
+            clearInterval(gameData.shotInt);
+            return;
+          }
+          if (!gameData.shotRun) return;
+          if (gameData.shot24 > 0) gameData.shot24--;
+          else gameData.shot24 = 24;
+          saveGameData();
+          renderPlayer();
+        }, 1000);
+      }
+
+      function resetShot24() {
+        if (!ensureControl()) return;
+        gameData.shot24 = 24;
+        saveGameData();
+        renderPlayer();
+      }
+
+      document.onkeydown = e => {
+        switch (e.key) {
+          case ' ':
+            if (gameData.timerRun) document.getElementById('pauseTimer').click();
+            else document.getElementById('startTimer').click();
+            break;
+          case 'a':
+          case 'A':
+            document.getElementById('back24A').click();
+            break;
+          case 's':
+          case 'S':
+            document.getElementById('back14S').click();
+            break;
+          case 'd':
+          case 'D':
+            document.getElementById('pauseShot').click();
+            break;
+          case 'f':
+          case 'F':
+            document.getElementById('resumeShot').click();
+            break;
+        }
+      };
+
+      const ownsInitialControl = claimControlLock(true);
+      setInterval(refreshControlLock, 2000);
+      window.addEventListener('beforeunload', releaseControlLock);
+      if (ownsInitialControl) saveGameData();
+      renderPlayer();
+    </script>
+  </body>
+</html>

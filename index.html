@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>篮球计分大屏-赛事配置</title>
+    <script src="auth.js"></script>
+    <script src="unloadGuard.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Microsoft Yahei', 'PingFang SC', sans-serif;
+      }
+
+      :root {
+        --mouse-x: 50%;
+        --mouse-y: 50%;
+        --bg: #050a14;
+        --panel: rgba(9, 20, 40, 0.78);
+        --panel-strong: rgba(13, 29, 58, 0.9);
+        --line: rgba(255, 255, 255, 0.13);
+        --cyan: #27e4ff;
+        --orange: #ffb020;
+        --green: #26d97f;
+        --red: #ff5c6c;
+        --text: #eef7ff;
+        --muted: rgba(238, 247, 255, 0.66);
+      }
+
+      html,
+      body {
+        min-height: 100%;
+      }
+
+      body {
+        min-height: 100vh;
+        color: var(--text);
+        background:
+          radial-gradient(circle at var(--mouse-x) var(--mouse-y), rgba(39, 228, 255, 0.14), transparent 26%),
+          radial-gradient(circle at 18% 16%, rgba(255, 176, 32, 0.2), transparent 24%),
+          linear-gradient(135deg, #050a14 0%, #0a1730 52%, #111b34 100%);
+        overflow-x: hidden;
+      }
+
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: radial-gradient(circle at center, black, transparent 78%);
+        animation: gridMove 14s linear infinite;
+        pointer-events: none;
+      }
+
+      .court-lines {
+        position: fixed;
+        inset: -12%;
+        opacity: 0.14;
+        background:
+          radial-gradient(circle at 50% 50%, transparent 0 9%, rgba(39, 228, 255, 0.82) 9.3% 9.7%, transparent 10%),
+          linear-gradient(90deg, transparent 49.8%, rgba(39, 228, 255, 0.76) 50%, transparent 50.2%),
+          linear-gradient(rgba(39, 228, 255, 0.38), rgba(39, 228, 255, 0.38)) center / 66% 1px no-repeat;
+        transform: perspective(900px) rotateX(62deg) translateY(20%);
+        animation: courtPulse 5s ease-in-out infinite;
+        pointer-events: none;
+      }
+
+      .page-shell {
+        position: relative;
+        z-index: 1;
+        width: min(1240px, calc(100% - 36px));
+        margin: 0 auto;
+        padding: 22px 0 34px;
+      }
+
+      .top-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        min-height: 58px;
+        margin-bottom: 18px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(5, 15, 31, 0.58);
+        backdrop-filter: blur(18px);
+        box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+      }
+
+      .brand-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 38px;
+        padding: 0 12px;
+        border: 1px solid rgba(39, 228, 255, 0.28);
+        border-radius: 999px;
+        color: #dff9ff;
+        background: rgba(39, 228, 255, 0.08);
+        font-size: 14px;
+        white-space: nowrap;
+      }
+
+      .live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #25f28f;
+        box-shadow: 0 0 16px #25f28f;
+        animation: blink 1.35s ease-in-out infinite;
+      }
+
+      .top-bar-spacer {
+        flex: 1;
+      }
+
+      button {
+        cursor: pointer;
+        border: none;
+        font-weight: 700;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+      }
+
+      .btn-green,
+      .btn-orange,
+      .btn-red,
+      .btn-gray,
+      .btn-final-green,
+      .player-add-btn,
+      .player-del-btn {
+        color: #07111f;
+        border-radius: 8px;
+      }
+
+      .btn-green {
+        background: linear-gradient(90deg, #23dd87, #27e4ff);
+        padding: 10px 18px;
+        font-size: 16px;
+        box-shadow: 0 12px 26px rgba(39, 228, 255, 0.18);
+      }
+
+      .btn-orange {
+        background: linear-gradient(90deg, #ff8a00, #ffbe2e);
+        padding: 10px 18px;
+        font-size: 16px;
+        box-shadow: 0 12px 26px rgba(255, 176, 32, 0.2);
+      }
+
+      .btn-red {
+        background: rgba(255, 92, 108, 0.16);
+        border: 1px solid rgba(255, 92, 108, 0.34);
+        color: #ffdce0;
+        padding: 9px 16px;
+        font-size: 16px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+        gap: 18px;
+        align-items: stretch;
+        margin-bottom: 18px;
+      }
+
+      .hero-main,
+      .quick-panel,
+      .config-panel,
+      .player-panel,
+      .switch-item {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        backdrop-filter: blur(18px);
+        box-shadow: 0 20px 58px rgba(0, 0, 0, 0.28);
+      }
+
+      .hero-main {
+        position: relative;
+        overflow: hidden;
+        min-height: 236px;
+        padding: 30px;
+        border-radius: 12px;
+      }
+
+      .hero-main::after {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        background: linear-gradient(120deg, transparent 16%, rgba(39, 228, 255, 0.16), transparent 52%, rgba(255, 176, 32, 0.14));
+        transform: translateX(-68%);
+        animation: scanLight 5.8s ease-in-out infinite;
+        pointer-events: none;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        padding: 0 10px;
+        border: 1px solid rgba(255, 176, 32, 0.26);
+        border-radius: 999px;
+        color: #ffd991;
+        background: rgba(255, 176, 32, 0.08);
+        font-size: 13px;
+      }
+
+      .hero h1 {
+        position: relative;
+        z-index: 1;
+        margin-top: 16px;
+        font-size: clamp(38px, 5vw, 66px);
+        line-height: 1.04;
+        letter-spacing: 0;
+      }
+
+      .hero h1 span {
+        display: block;
+        color: var(--orange);
+        text-shadow: 0 0 26px rgba(255, 176, 32, 0.24);
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 1;
+        max-width: 660px;
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.8;
+      }
+
+      .quick-panel {
+        display: grid;
+        gap: 12px;
+        padding: 18px;
+        border-radius: 12px;
+      }
+
+      .quick-item {
+        min-height: 68px;
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .quick-num {
+        display: block;
+        color: #fff;
+        font-size: 26px;
+        font-weight: 800;
+      }
+
+      .quick-label {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .config-panel {
+        margin-bottom: 18px;
+        padding: 20px;
+        border-radius: 12px;
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .section-title h2 {
+        font-size: 22px;
+        letter-spacing: 0;
+      }
+
+      .section-title span {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .title-wrap label,
+      .team-item h4 {
+        display: block;
+        color: rgba(238, 247, 255, 0.9);
+        font-size: 16px;
+        margin-bottom: 8px;
+        font-weight: 700;
+      }
+
+      input[type='text'],
+      .team-item input.name-in,
+      .player-row-edit input {
+        width: 100%;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        background: rgba(5, 15, 31, 0.62);
+        color: #fff;
+        outline: none;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      }
+
+      input[type='text'],
+      .team-item input.name-in {
+        height: 52px;
+        padding: 0 14px;
+        font-size: 18px;
+      }
+
+      input:focus {
+        border-color: rgba(39, 228, 255, 0.72);
+        background: rgba(5, 15, 31, 0.84);
+        box-shadow: 0 0 0 4px rgba(39, 228, 255, 0.1);
+      }
+
+      .team-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-top: 16px;
+      }
+
+      .team-item {
+        min-width: 0;
+        padding: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.055);
+      }
+
+      .color-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 6px;
+      }
+
+      .color-item::after {
+        content: '点击色块选择球衣颜色';
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .color-item input[type='color'] {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+      }
+
+      .color-block {
+        width: 54px;
+        height: 38px;
+        border: 2px solid rgba(255, 255, 255, 0.62);
+        border-radius: 8px;
+        cursor: pointer;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+      }
+
+      .color-block.active {
+        border-color: var(--cyan);
+        box-shadow: 0 0 0 4px rgba(39, 228, 255, 0.12), 0 10px 24px rgba(0, 0, 0, 0.24);
+      }
+
+      .player-wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 70px minmax(0, 1fr);
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .player-panel {
+        overflow: hidden;
+        border-radius: 12px;
+      }
+
+      .player-panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 14px 16px;
+        background: var(--panel-strong);
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      .player-add-btn {
+        background: linear-gradient(90deg, #23dd87, #27e4ff);
+        padding: 8px 12px;
+        font-size: 14px;
+      }
+
+      .player-table-head,
+      .player-row-edit {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr) 76px;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 14px;
+      }
+
+      .player-table-head {
+        color: rgba(238, 247, 255, 0.7);
+        background: rgba(39, 228, 255, 0.09);
+        font-size: 14px;
+      }
+
+      .player-row-edit {
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .player-row-edit input {
+        height: 42px;
+        padding: 0 10px;
+        font-size: 16px;
+      }
+
+      .player-del-btn {
+        background: rgba(255, 92, 108, 0.18);
+        border: 1px solid rgba(255, 92, 108, 0.34);
+        color: #ffdce0;
+        padding: 9px 10px;
+        font-size: 14px;
+      }
+
+      .vs-txt {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 176, 32, 0.24);
+        border-radius: 12px;
+        color: var(--orange);
+        background: rgba(255, 176, 32, 0.08);
+        font-size: 30px;
+        font-weight: 900;
+        text-shadow: 0 0 18px rgba(255, 176, 32, 0.28);
+      }
+
+      .check-group {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .switch-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 64px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+      }
+
+      .switch-item:hover {
+        transform: translateY(-2px);
+        border-color: rgba(39, 228, 255, 0.36);
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .switch-item input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .switch-text {
+        color: rgba(238, 247, 255, 0.9);
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .switch-slider {
+        position: relative;
+        flex: 0 0 auto;
+        width: 56px;
+        height: 30px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        transition: background 0.2s ease, border-color 0.2s ease;
+      }
+
+      .switch-slider::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 8px rgba(0, 0, 0, 0.28);
+        transition: transform 0.2s ease;
+      }
+
+      .switch-item input:checked + .switch-slider {
+        background: linear-gradient(90deg, #23dd87, #27e4ff);
+        border-color: rgba(39, 228, 255, 0.5);
+      }
+
+      .switch-item input:checked + .switch-slider::after {
+        transform: translateX(26px);
+      }
+
+      .bottom-btn-row {
+        position: sticky;
+        bottom: 14px;
+        z-index: 5;
+        display: grid;
+        grid-template-columns: minmax(160px, 0.36fr) 1fr;
+        gap: 12px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(5, 15, 31, 0.72);
+        backdrop-filter: blur(18px);
+        box-shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
+      }
+
+      .btn-gray,
+      .btn-final-green {
+        min-height: 54px;
+        font-size: 18px;
+      }
+
+      .btn-gray {
+        color: rgba(238, 247, 255, 0.86);
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+      }
+
+      .btn-final-green {
+        background: linear-gradient(90deg, #ff8a00, #ffbe2e 48%, #27e4ff);
+        color: #07111f;
+        box-shadow: 0 18px 42px rgba(255, 176, 32, 0.22);
+      }
+
+      @keyframes gridMove {
+        from {
+          background-position: 0 0, 0 0;
+        }
+        to {
+          background-position: 44px 44px, 44px 44px;
+        }
+      }
+
+      @keyframes courtPulse {
+        0%,
+        100% {
+          opacity: 0.1;
+        }
+        50% {
+          opacity: 0.2;
+        }
+      }
+
+      @keyframes blink {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.45);
+          opacity: 0.52;
+        }
+      }
+
+      @keyframes scanLight {
+        0%,
+        45% {
+          transform: translateX(-68%);
+        }
+        72%,
+        100% {
+          transform: translateX(68%);
+        }
+      }
+
+      @media (max-width: 920px) {
+        .hero,
+        .team-row,
+        .player-wrap {
+          grid-template-columns: 1fr;
+        }
+
+        .vs-txt {
+          min-height: 54px;
+        }
+
+        .bottom-btn-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .page-shell {
+          width: min(100% - 24px, 1240px);
+          padding-top: 12px;
+        }
+
+        .hero-main,
+        .config-panel {
+          padding: 18px;
+        }
+
+        .player-table-head,
+        .player-row-edit {
+          grid-template-columns: 70px minmax(0, 1fr) 64px;
+          gap: 8px;
+          padding: 9px 10px;
+        }
+
+        .brand-chip {
+          width: 100%;
+          justify-content: center;
+        }
+
+        .top-bar button {
+          flex: 1 1 150px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="court-lines"></div>
+    <main class="page-shell">
+      <div class="top-bar">
+        <div class="brand-chip"><span class="live-dot"></span>篮球计分大屏系统</div>
+        <button class="btn-green" onclick="openScoreBoard()">打开记分板</button>
+        <button class="btn-orange" onclick="openBigScreen()">打开比分大屏</button>
+        <span class="top-bar-spacer"></span>
+        <button class="btn-red" onclick="logoutAccount()">退出登录</button>
+      </div>
+
+      <section class="hero">
+        <div class="hero-main">
+          <span class="eyebrow">MATCH SETUP</span>
+          <h1>
+            赛事配置
+            <span>准备开赛</span>
+          </h1>
+          <p class="hero-copy">
+            配置比赛标题、球队信息、球员名单和大屏显示规则。保存后即可打开记分板控制比赛，并同步到比分大屏。
+          </p>
+        </div>
+        <aside class="quick-panel">
+          <div class="quick-item">
+            <span class="quick-num">01</span>
+            <span class="quick-label">录入球队和球员</span>
+          </div>
+          <div class="quick-item">
+            <span class="quick-num">02</span>
+            <span class="quick-label">保存配置生成比赛</span>
+          </div>
+          <div class="quick-item">
+            <span class="quick-num">03</span>
+            <span class="quick-label">打开记分板和大屏</span>
+          </div>
+        </aside>
+      </section>
+
+      <section class="config-panel">
+        <div class="section-title">
+          <h2>基础信息</h2>
+          <span>比赛名称、球队名称、球衣颜色</span>
+        </div>
+        <div class="title-wrap">
+          <label>比赛标题</label>
+          <input type="text" id="matchTitle" value="运启新城 同心共赢" />
+        </div>
+
+        <div class="team-row">
+          <div class="team-item">
+            <h4>主队名称</h4>
+            <input class="name-in" id="homeName" value="总部" />
+            <h4>球衣颜色</h4>
+            <div class="color-item">
+              <button type="button" class="color-block active" id="homeColorBlock" style="background: #007bff" onclick="openColorPicker('home')" aria-label="选择主队球衣颜色"></button>
+              <input type="color" id="homeColorPicker" value="#007bff" onchange="updateTeamColor('home', this.value)" />
+            </div>
+          </div>
+          <div class="team-item">
+            <h4>客队名称</h4>
+            <input class="name-in" id="awayName" value="文体" />
+            <h4>球衣颜色</h4>
+            <div class="color-item">
+              <button type="button" class="color-block active" id="awayColorBlock" style="background: #ffc107" onclick="openColorPicker('away')" aria-label="选择客队球衣颜色"></button>
+              <input type="color" id="awayColorPicker" value="#ffc107" onchange="updateTeamColor('away', this.value)" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="section-title">
+        <h2>球员名单</h2>
+        <span>支持按回车快速新增下一名球员</span>
+      </div>
+      <section class="player-wrap">
+        <div class="player-panel">
+          <div class="player-panel-head"><span>主队球员</span><button type="button" class="player-add-btn" onclick="addPlayerRow('home')">添加球员</button></div>
+          <div class="player-table-head"><span>号码</span><span>姓名</span><span>操作</span></div>
+          <div id="homePlayerRows"></div>
+        </div>
+        <div class="vs-txt">VS</div>
+        <div class="player-panel">
+          <div class="player-panel-head"><span>客队球员</span><button type="button" class="player-add-btn" onclick="addPlayerRow('away')">添加球员</button></div>
+          <div class="player-table-head"><span>号码</span><span>姓名</span><span>操作</span></div>
+          <div id="awayPlayerRows"></div>
+        </div>
+      </section>
+
+      <div class="section-title">
+        <h2>显示与排序</h2>
+        <span>控制记分板和大屏展示方式</span>
+      </div>
+      <section class="check-group">
+        <label class="switch-item">
+          <span class="switch-text">显示比赛时间</span>
+          <input type="checkbox" id="showTime" checked />
+          <span class="switch-slider"></span>
+        </label>
+        <label class="switch-item">
+          <span class="switch-text">显示 24 秒</span>
+          <input type="checkbox" id="show24s" checked />
+          <span class="switch-slider"></span>
+        </label>
+        <label class="switch-item">
+          <span class="switch-text">按得分排序</span>
+          <input type="checkbox" id="sortScore" />
+          <span class="switch-slider"></span>
+        </label>
+        <label class="switch-item">
+          <span class="switch-text">按上场球员排序</span>
+          <input type="checkbox" id="sortPlayer" />
+          <span class="switch-slider"></span>
+        </label>
+        <label class="switch-item">
+          <span class="switch-text">实时上传比赛数据到平台</span>
+          <input type="checkbox" id="autoUpload" />
+          <span class="switch-slider"></span>
+        </label>
+      </section>
+
+      <div class="bottom-btn-row">
+        <button class="btn-gray" onclick="resetAllData()">重置</button>
+        <button class="btn-final-green" onclick="saveMatchConfig()">确定保存配置</button>
+      </div>
+    </main>
+
+    <script>
+      const defaultData = {
+        title: '运启新城 同心共赢',
+        home: '总部',
+        away: '文体',
+        homeText: `1|张军鹏
+4|赵强
+3|王龙
+0|李春秋
+5|秦宇
+2|周宇航
+6|姜立伟
+99|郝伟`,
+        awayText: `5|齐浩
+7|闫亦帅
+6|车龙成
+2|罗奇
+4|孙启蒙
+1|张金淼
+9|刘帆
+8|朱景宽`,
+      };
+
+      function parsePlayer(str) {
+        return str
+          .trim()
+          .split(/\n/)
+          .filter(item => item.trim() !== '')
+          .map(line => line.split('|'))
+          .filter(split => split.length === 2)
+          .map(split => ({ num: split[0].trim(), name: split[1].trim() }));
+      }
+
+      function buildInitialGameData(config) {
+        return {
+          title: config.matchTitle,
+          homeName: config.homeTeam,
+          awayName: config.awayTeam,
+          homeColor: config.homeColor,
+          awayColor: config.awayColor,
+          homePlayers: config.homePlayerList.map(player => ({ ...player, score: 0, foul: 0, isPlay: false })),
+          awayPlayers: config.awayPlayerList.map(player => ({ ...player, score: 0, foul: 0, isPlay: false })),
+          homeScore: 0,
+          awayScore: 0,
+          homeFoul: 0,
+          awayFoul: 0,
+          homeTimeout: 0,
+          awayTimeout: 0,
+          periodMinutes: 12,
+          gameMin: 12,
+          gameSec: 0,
+          shot24: 24,
+          showTime: config.showTime,
+          show24s: config.show24s,
+          sortByScore: config.sortByScore,
+          sortByPlayer: config.sortByPlayer,
+          section: 1,
+          ballSide: 'none',
+          timerRun: false,
+          shotRun: false,
+          timerInt: null,
+          shotInt: null,
+        };
+      }
+
+      function saveInitialGameData(config) {
+        const data = buildInitialGameData(config);
+        localStorage.setItem('matchGameData', JSON.stringify(data));
+        if (gameChannel) gameChannel.postMessage({ type: 'gameData', payload: data });
+      }
+
+      let matchConfig = safeStorageJson('matchConfig', {});
+      let gameChannel = 'BroadcastChannel' in window ? new BroadcastChannel('basketball-score-sync') : null;
+
+      function saveMatchConfig() {
+        const homePlayers = collectPlayers('home');
+        const awayPlayers = collectPlayers('away');
+        matchConfig = {
+          matchTitle: document.getElementById('matchTitle').value,
+          homeTeam: document.getElementById('homeName').value,
+          awayTeam: document.getElementById('awayName').value,
+          homeColor: document.getElementById('homeColorPicker').value,
+          awayColor: document.getElementById('awayColorPicker').value,
+          homePlayerList: homePlayers,
+          awayPlayerList: awayPlayers,
+          showTime: document.getElementById('showTime').checked,
+          show24s: document.getElementById('show24s').checked,
+          sortByScore: document.getElementById('sortScore').checked,
+          sortByPlayer: document.getElementById('sortPlayer').checked,
+          autoUpload: document.getElementById('autoUpload').checked,
+        };
+
+        localStorage.setItem('matchConfig', JSON.stringify(matchConfig));
+        if (gameChannel) gameChannel.postMessage({ type: 'matchConfig', payload: matchConfig });
+        saveInitialGameData(matchConfig);
+
+        alert(`配置保存成功！\n主队 ${matchConfig.homeTeam}：${matchConfig.homePlayerList.length} 名球员\n客队 ${matchConfig.awayTeam}：${matchConfig.awayPlayerList.length} 名球员\n打开记分板后会自动加载本场比赛。`);
+      }
+
+      function openScoreBoard() {
+        if (Object.keys(matchConfig).length === 0) {
+          alert('请先保存赛事配置！');
+          return;
+        }
+        localStorage.setItem('matchConfig', JSON.stringify(matchConfig));
+        if (gameChannel) gameChannel.postMessage({ type: 'matchConfig', payload: matchConfig });
+        window.open('scoreCtrl.html', '_blank');
+      }
+
+      function openBigScreen() {
+        if (Object.keys(matchConfig).length === 0) {
+          alert('请先保存赛事配置！');
+          return;
+        }
+        localStorage.setItem('matchConfig', JSON.stringify(matchConfig));
+        if (gameChannel) gameChannel.postMessage({ type: 'matchConfig', payload: matchConfig });
+        window.open('bigScreen.html', '_blank');
+      }
+
+      function resetAllData() {
+        if (!confirm('确定重置所有配置和球员信息吗？')) return;
+        document.getElementById('matchTitle').value = defaultData.title;
+        document.getElementById('homeName').value = defaultData.home;
+        document.getElementById('awayName').value = defaultData.away;
+        renderPlayerRows('home', parsePlayer(defaultData.homeText));
+        renderPlayerRows('away', parsePlayer(defaultData.awayText));
+        document.getElementById('showTime').checked = true;
+        document.getElementById('show24s').checked = true;
+        document.getElementById('sortScore').checked = false;
+        document.getElementById('sortPlayer').checked = false;
+        document.getElementById('autoUpload').checked = false;
+        updateTeamColor('home', '#007bff');
+        updateTeamColor('away', '#ffc107');
+        matchConfig = {};
+        localStorage.removeItem('matchConfig');
+        localStorage.removeItem('matchGameData');
+        alert('配置已重置');
+      }
+
+      function escapeAttr(value) {
+        return String(value || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      }
+
+      function addPlayerRow(side, player = {}) {
+        const wrap = document.getElementById(`${side}PlayerRows`);
+        const row = document.createElement('div');
+        row.className = 'player-row-edit';
+        row.innerHTML = `<input class="player-num" value="${escapeAttr(player.num)}" placeholder="号码" /><input class="player-name" value="${escapeAttr(player.name)}" placeholder="姓名" /><button type="button" class="player-del-btn" onclick="this.closest('.player-row-edit').remove()">删除</button>`;
+        wrap.appendChild(row);
+        row.querySelector('.player-name').addEventListener('keydown', e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            addPlayerRow(side);
+            wrap.lastElementChild.querySelector('.player-num').focus();
+          }
+        });
+      }
+
+      function renderPlayerRows(side, players) {
+        document.getElementById(`${side}PlayerRows`).innerHTML = '';
+        players.forEach(player => addPlayerRow(side, player));
+        if (players.length === 0) addPlayerRow(side);
+      }
+
+      function collectPlayers(side) {
+        return Array.from(document.querySelectorAll(`#${side}PlayerRows .player-row-edit`))
+          .map(row => ({
+            num: row.querySelector('.player-num').value.trim(),
+            name: row.querySelector('.player-name').value.trim(),
+          }))
+          .filter(player => player.num || player.name);
+      }
+
+      function openColorPicker(side) {
+        document.getElementById(`${side}ColorPicker`).click();
+      }
+
+      function updateTeamColor(side, color) {
+        document.getElementById(`${side}ColorPicker`).value = color;
+        const block = document.getElementById(`${side}ColorBlock`);
+        block.style.background = color;
+        block.classList.add('active');
+      }
+
+      function loadSavedConfig() {
+        if (Object.keys(matchConfig).length === 0) {
+          renderPlayerRows('home', parsePlayer(defaultData.homeText));
+          renderPlayerRows('away', parsePlayer(defaultData.awayText));
+          return;
+        }
+        document.getElementById('matchTitle').value = matchConfig.matchTitle || defaultData.title;
+        document.getElementById('homeName').value = matchConfig.homeTeam || defaultData.home;
+        document.getElementById('awayName').value = matchConfig.awayTeam || defaultData.away;
+        document.getElementById('showTime').checked = matchConfig.showTime !== false;
+        document.getElementById('show24s').checked = matchConfig.show24s !== false;
+        document.getElementById('sortScore').checked = matchConfig.sortByScore === true;
+        document.getElementById('sortPlayer').checked = matchConfig.sortByScore === true ? false : matchConfig.sortByPlayer === true;
+        document.getElementById('autoUpload').checked = matchConfig.autoUpload === true;
+        updateTeamColor('home', matchConfig.homeColor || '#007bff');
+        updateTeamColor('away', matchConfig.awayColor || '#ffc107');
+        renderPlayerRows('home', matchConfig.homePlayerList || parsePlayer(defaultData.homeText));
+        renderPlayerRows('away', matchConfig.awayPlayerList || parsePlayer(defaultData.awayText));
+      }
+
+      loadSavedConfig();
+
+      document.getElementById('sortScore').addEventListener('change', event => {
+        if (event.target.checked) document.getElementById('sortPlayer').checked = false;
+      });
+
+      document.getElementById('sortPlayer').addEventListener('change', event => {
+        if (event.target.checked) document.getElementById('sortScore').checked = false;
+      });
+
+      window.addEventListener('pointermove', event => {
+        document.documentElement.style.setProperty('--mouse-x', `${(event.clientX / window.innerWidth) * 100}%`);
+        document.documentElement.style.setProperty('--mouse-y', `${(event.clientY / window.innerHeight) * 100}%`);
+      });
+    </script>
+  </body>
+</html>
